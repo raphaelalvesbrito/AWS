@@ -1,0 +1,203 @@
+#Criação de uma Instância EC2
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Template para criar uma instância EC2 simples
+
+Resources:
+  MyEC2Instance:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      InstanceType: t2.micro
+      ImageId: ami-0c55b159cbfafe1f0  # Substitua pela ID do AMI da sua região
+      KeyName: 'my-key-pair'  # Substitua pelo seu par de chaves
+      AvailabilityZone: us-east-1a  # Substitua pela zona de disponibilidade de sua escolha
+      SecurityGroupIds:
+        - sg-0bb1c0f0fa4b7e8f0  # Substitua pelo ID de seu Security Group
+      SubnetId: subnet-0bb1c0f0fa4b7e8f0  # Substitua pela Subnet de sua VPC
+
+Outputs:
+  InstanceId:
+    Description: 'ID da instância EC2 criada'
+    Value: !Ref MyEC2Instance
+    
+#Criação de um Banco de Dados RDS
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Template para criar um banco de dados RDS MySQL
+
+Resources:
+  MyRDSInstance:
+    Type: 'AWS::RDS::DBInstance'
+    Properties:
+      DBInstanceClass: db.t2.micro
+      Engine: MySQL
+      MasterUsername: admin
+      MasterUserPassword: 'password123'  # Substitua por uma senha segura
+      DBName: mydatabase
+      AllocatedStorage: 20
+      BackupRetentionPeriod: 7
+      VPCSecurityGroups:
+        - sg-0bb1c0f0fa4b7e8f0  # Substitua pelo ID do Security Group
+      DBSubnetGroupName: mydbsubnetgroup  # Crie uma DB Subnet Group separada
+      MultiAZ: false
+      PubliclyAccessible: false
+
+Outputs:
+  DBInstanceEndpoint:
+    Description: 'Endpoint do banco de dados RDS'
+    Value: !GetAtt MyRDSInstance.Endpoint.Address
+    
+#Exemplo de Criação de uma Função Lambda com um Role IAM
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Template para criar uma função Lambda com permissão IAM
+
+Resources:
+  MyLambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Action: 'sts:AssumeRole'
+            Principal:
+              Service: 'lambda.amazonaws.com'
+      Policies:
+        - PolicyName: 'LambdaBasicLoggingPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action:
+                  - 'logs:*'
+                Resource: 'arn:aws:logs:*:*:*'
+
+  MyLambdaFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Handler: 'index.handler'
+      Role: !GetAtt MyLambdaExecutionRole.Arn
+      FunctionName: 'MyLambdaFunction'
+      Runtime: 'nodejs14.x'
+      Code:
+        S3Bucket: 'my-lambda-bucket'  # Substitua pelo seu bucket S3 com o código
+        S3Key: 'lambda-code.zip'      # Substitua pela chave do arquivo zip
+      MemorySize: 128
+      Timeout: 30
+
+Outputs:
+  LambdaFunctionName:
+    Description: 'Nome da função Lambda criada'
+    Value: !Ref MyLambdaFunction
+    
+#Exemplo de Criação de uma VPC com Subnets, Route Tables e Internet Gateway
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Template para criar uma VPC com subnets, tabela de rotas e Internet Gateway
+
+Resources:
+  MyVPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: '10.0.0.0/16'
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: 'Name'
+          Value: 'MyVPC'
+
+  MySubnetA:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: '10.0.1.0/24'
+      AvailabilityZone: 'us-east-1a'
+      Tags:
+        - Key: 'Name'
+          Value: 'SubnetA'
+
+  MySubnetB:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: '10.0.2.0/24'
+      AvailabilityZone: 'us-east-1b'
+      Tags:
+        - Key: 'Name'
+          Value: 'SubnetB'
+
+  MyInternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+        - Key: 'Name'
+          Value: 'MyInternetGateway'
+
+  AttachInternetGateway:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref MyVPC
+      InternetGatewayId: !Ref MyInternetGateway
+
+  MyRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref MyVPC
+
+  MyRoute:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      RouteTableId: !Ref MyRouteTable
+      DestinationCidrBlock: '0.0.0.0/0'
+      GatewayId: !Ref MyInternetGateway
+
+  MySubnetARouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref MySubnetA
+      RouteTableId: !Ref MyRouteTable
+
+  MySubnetBRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref MySubnetB
+      RouteTableId: !Ref MyRouteTable
+
+Outputs:
+  VPCId:
+    Description: 'ID da VPC criada'
+    Value: !Ref MyVPC
+
+  SubnetAId:
+    Description: 'ID da Subnet A'
+    Value: !Ref MySubnetA
+
+  SubnetBId:
+    Description: 'ID da Subnet B'
+    Value: !Ref MySubnetB
+
+#Criação de um Cluster EKS (Elastic Kubernetes Service)
+#Este exemplo cria um Cluster EKS básico, junto com o VPC necessário para o EKS.
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Template para criar um cluster EKS básico
+
+Resources:
+  MyEKSCluster:
+    Type: 'AWS::EKS::Cluster'
+    Properties:
+      Name: 'my-eks-cluster'
+      RoleArn: arn:aws:iam::123456789012:role/MyEKSClusterRole  # Substitua pelo seu Role ARN
+      ResourcesVpcConfig:
+        SubnetIds:
+          - subnet-12345678  # Substitua pelos IDs das suas subnets
+          - subnet-87654321
+        SecurityGroupIds:
+          - sg-12345678  # Substitua pelo seu Security Group
+      Version: '1.21'
+
+Outputs:
+  EKSClusterName:
+    Description: 'Nome do cluster EKS criado'
+    Value: !Ref MyEKSCluster
